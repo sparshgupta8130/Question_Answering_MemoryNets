@@ -109,10 +109,10 @@ class QuesAnsModel(torch.nn.Module):
 # In[5]:
 
 
-def train(model,tr_dt_bow,vd_dt_bow,epochs=10,eta=0.0001):
-    optimizer = optim.Adam(model.parameters(),lr=eta)
+def train(model,tr_dt_bow,vd_dt_bow,opt=optim.Adam,epochs=10,eta=0.0001):
+    optimizer = opt(model.parameters(),lr=eta)
     loss = torch.nn.CrossEntropyLoss()
-    
+    print(optimizer)
     tr_shape = tr_dt_bow.shape
     vd_shape = vd_dt_bow.shape
     eps = []
