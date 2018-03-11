@@ -12,7 +12,9 @@ from collections import defaultdict
 import pickle
 from torch.autograd import Variable
 import torch.optim as optim
+import os
 import sys
+from time import gmtime, strftime
 get_ipython().run_line_magic('matplotlib', 'inline')
 
 
@@ -38,7 +40,7 @@ def comp(out,target):
 
 
 class QuesAnsModel(torch.nn.Module):
-    def __init__(self,embedding_dim, vocab_size, num_hops = 1, max_mem_size=15,temporal=False):
+    def __init__(self,embedding_dim, vocab_size, num_hops = 1, max_mem_size=15,temporal=False,same=0):
         super(QuesAnsModel,self).__init__()
         self.max_mem_size = max_mem_size
         self.vocab_size = vocab_size
@@ -47,17 +49,18 @@ class QuesAnsModel(torch.nn.Module):
         self.memory = self.init_memory()
         self.current_mem_size = 0
         self.temporal = temporal
+        self.same = same
         self.embedding_A = torch.nn.Linear(self.vocab_size,self.embedding_dim,bias=False)
-        self.embedding_B = torch.nn.Linear(self.vocab_size,self.embedding_dim,bias=False)
         self.embedding_C = torch.nn.Linear(self.vocab_size,self.embedding_dim,bias=False)
+        torch.nn.init.xavier_normal(self.embedding_A.weight)
+        torch.nn.init.xavier_normal(self.embedding_C.weight)
+        self.embedding_B = torch.nn.Linear(self.vocab_size,self.embedding_dim,bias=False)
+        
         self.W = torch.nn.Linear(self.embedding_dim,self.vocab_size,bias=False)
         
         self.temporal_A = torch.nn.Parameter(torch.randn(self.max_mem_size,self.embedding_dim).float())
         self.temporal_C = torch.nn.Parameter(torch.randn(self.max_mem_size,self.embedding_dim).float())
-        
-        torch.nn.init.xavier_normal(self.embedding_A.weight)
         torch.nn.init.xavier_normal(self.embedding_B.weight)
-        torch.nn.init.xavier_normal(self.embedding_C.weight)
         torch.nn.init.xavier_normal(self.W.weight)
         self.softmax = torch.nn.Softmax(dim=0)
     
@@ -68,7 +71,7 @@ class QuesAnsModel(torch.nn.Module):
 #                 aux[i,j] = -10000000000
         return Variable(aux,requires_grad=False)
 
-    def forward(self, seq, tag):
+    def forward(self, seq, tag, LS = 0):
         if tag == 's':
             if self.current_mem_size < self.max_mem_size:
                 self.memory[self.current_mem_size] = Variable(torch.from_numpy(seq).float()).view(1,-1)
@@ -89,30 +92,55 @@ class QuesAnsModel(torch.nn.Module):
         else:
             self.question = Variable(torch.from_numpy(seq).float()).view(1,-1)
 #             self.question = Variable(torch.from_numpy(seq).float().cuda()).view(1,-1)
-            ques_d = self.embedding_B(self.question)
-            if self.temporal == True:
-#                 temp_mem = np.flipud(np.array(self.memory.data))
-#                 self.memory = Variable(torch.from_numpy(temp_mem.copy())).float()  
-                current_A = self.embedding_A(self.memory) + self.temporal_A
-                current_C = self.embedding_C(self.memory) + self.temporal_C
+            if self.same == 0:
+                ques_d = self.embedding_B(self.question)
+                if self.temporal == True:
+    #                 temp_mem = np.flipud(np.array(self.memory.data))
+    #                 self.memory = Variable(torch.from_numpy(temp_mem.copy())).float()
+                    current_A = self.embedding_A(self.memory) + self.temporal_A
+                    current_C = self.embedding_C(self.memory) + self.temporal_C
+                else:
+                    current_A = self.embedding_A(self.memory)
+                    current_C = self.embedding_C(self.memory)
+
+                for i in range(self.num_hops):
+                    aux = torch.mm(ques_d, current_A.t()).t()
+                    if LS == 0:
+                        P = self.softmax(aux)
+                    else:
+                        P = aux
+                    o = torch.mm(P.t(),current_C) + ques_d
+                    ques_d = o
+                output = self.W(o)
+                return output
             else:
-                current_A = self.embedding_A(self.memory)
-                current_C = self.embedding_C(self.memory)
-            for i in range(self.num_hops):
-                P = self.softmax(torch.mm(ques_d, current_A.t()).t())
-                o = torch.mm(P.t(),current_C) + ques_d
-                ques_d = o
-            output = self.W(o)
-            return output
+                ques_d = self.embedding_A(self.question)
+                if self.temporal == True:
+    #                 temp_mem = np.flipud(np.array(self.memory.data))
+    #                 self.memory = Variable(torch.from_numpy(temp_mem.copy())).float()
+                    current_A = self.embedding_A(self.memory) + self.temporal_A
+                else:
+                    current_A = self.embedding_A(self.memory)
+
+                for i in range(self.num_hops):
+                    aux = torch.mm(ques_d, current_A.t()).t()
+                    if LS == 0:
+                        P = self.softmax(aux)
+                    else:
+                        P = aux
+                    o = torch.mm(P.t(),current_A) + ques_d
+                    ques_d = o
+                output = self.W(o)
+                return output
 
 
 # In[5]:
 
 
-def train(model,tr_dt_bow,vd_dt_bow,epochs=10,eta=0.0001):
-    optimizer = optim.Adam(model.parameters(),lr=eta)
+def train(model,tr_dt_bow,vd_dt_bow,opt=optim.Adam,epochs=10,eta=0.0001,LS=0,ls_thres=0.001):
+    optimizer = opt(model.parameters(),lr=eta)
     loss = torch.nn.CrossEntropyLoss()
-    
+    print(optimizer)
     tr_shape = tr_dt_bow.shape
     vd_shape = vd_dt_bow.shape
     eps = []
@@ -120,6 +148,16 @@ def train(model,tr_dt_bow,vd_dt_bow,epochs=10,eta=0.0001):
     l_vd = []
     accuracy_tr = []
     accuracy_vd = []
+    
+    if LS == 1:
+        ls = 1
+        ls_only = 0
+    elif LS == 0:
+        ls = 0
+        ls_only = 0
+    else:
+        ls = 1
+        ls_only = 1
     
     for epoch in range(epochs):
         count=0;
@@ -136,7 +174,7 @@ def train(model,tr_dt_bow,vd_dt_bow,epochs=10,eta=0.0001):
                 model(tr_dt_bow[i,:-1],tag)
             else:
                 count+=1
-                out = model(tr_dt_bow[i,:-1],tag)
+                out = model(tr_dt_bow[i,:-1],tag,LS=ls)
                 target = Variable(torch.from_numpy(np.array([tr_dt_bow[i,-1]])).type(torch.LongTensor))
 #                 target = Variable(torch.from_numpy(np.array([tr_dt_bow[i,-1]])).type(torch.LongTensor).cuda())
                 optimizer.zero_grad()
@@ -174,24 +212,54 @@ def train(model,tr_dt_bow,vd_dt_bow,epochs=10,eta=0.0001):
         acc_vd = n_corr/count*100
         l_vd.append(l_temp)
         accuracy_vd.append(acc_vd)
+        if not ls_only:
+            n = len(l_vd)
+            if n >= 3:
+                if abs(l_vd[-3] - l_vd[-1]) < ls_thres and ls == 1:
+                    print('Inserting Softmax...')
+                    ls = 0
+            elif n > 1:
+                if abs(l_vd[0] - l_vd[-1]) < ls_thres and ls == 1:
+                    print('Inserting Softmax...')
+                    ls = 0
         
         eps.append(epoch)
         print(epoch,'Training Loss : ',l_tr[-1],' , Training Acc : ',accuracy_tr[-1])
         print(epoch,'Validation Loss : ',l_vd[-1],' , Validation Acc : ',accuracy_vd[-1])
-        
+    print('end')
+    file_path = "./observations/"
+    directory = os.path.dirname(file_path)
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+        print('dfddf')
+    file_path = "./saved_models/"
+    directory = os.path.dirname(file_path)
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    ts = strftime("%Y-%m-%d__%Hh%Mm%Ss_", gmtime())
+    if os.path.exists('saved_models/model' + str(ts) + '.pt'):
+        os.remove('saved_models/model' + str(ts) + '.pt')
+    
+    torch.save(model,'saved_models/model' + str(ts) + '.pt')    
+    
+    fig = plt.figure()
     plt.plot(eps,l_tr)
     plt.plot(eps,l_vd)
     plt.xlabel('Epochs')
     plt.ylabel('Loss')
     plt.legend(['Training Loss','Validation Loss'])
+    fig.savefig('observations/LossPlot_' + str(ts) + '.png', dpi=fig.dpi)
     plt.show()
-
+    
+    fig = plt.figure()
     plt.plot(eps,accuracy_tr)
     plt.plot(eps,accuracy_vd)
     plt.xlabel('Epochs')
     plt.ylabel('Accuracy%')
     plt.legend(['Training Accuracy','Validation Accuracy'],loc=4)
     plt.show()
+    fig.savefig('observations/AccuracyPlot_' + str(ts) + '.png', dpi=fig.dpi)
+    
     return l_tr, accuracy_tr, l_vd, accuracy_vd
 
 
