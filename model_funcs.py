@@ -70,7 +70,7 @@ class QuesAnsModel(torch.nn.Module):
 #                 aux[i,j] = -10000000000
         return Variable(aux,requires_grad=False)
 
-    def forward(self, seq, tag, LS = 0, same= 0):
+    def forward(self, seq, tag, LS = 0, same = 0):
         if tag == 's':
             if self.current_mem_size < self.max_mem_size:
                 self.memory[self.current_mem_size] = Variable(torch.from_numpy(seq).float()).view(1,-1)
@@ -137,7 +137,7 @@ class QuesAnsModel(torch.nn.Module):
 # In[5]:
 
 
-def train(model,tr_dt_bow,vd_dt_bow,opt=optim.Adam,epochs=10,eta=0.0001,LS=0,ls_thres=0.001):
+def train(model,tr_dt_bow,vd_dt_bow,opt=optim.Adam,epochs=10,eta=0.0001,LS=0,ls_thres=0.001,same=0):
     optimizer = opt(model.parameters(),lr=eta)
     loss = torch.nn.CrossEntropyLoss()
     print(optimizer)
@@ -174,7 +174,7 @@ def train(model,tr_dt_bow,vd_dt_bow,opt=optim.Adam,epochs=10,eta=0.0001,LS=0,ls_
                 model(tr_dt_bow[i,:-1],tag)
             else:
                 count+=1
-                out = model(tr_dt_bow[i,:-1],tag,LS=ls)
+                out = model(tr_dt_bow[i,:-1],tag,LS=ls,same=same)
                 target = Variable(torch.from_numpy(np.array([tr_dt_bow[i,-1]])).type(torch.LongTensor))
 #                 target = Variable(torch.from_numpy(np.array([tr_dt_bow[i,-1]])).type(torch.LongTensor).cuda())
                 optimizer.zero_grad()
