@@ -12,7 +12,9 @@ from collections import defaultdict
 import pickle
 from torch.autograd import Variable
 import torch.optim as optim
+import os
 import sys
+from time import gmtime, strftime
 get_ipython().run_line_magic('matplotlib', 'inline')
 
 
@@ -47,17 +49,18 @@ class QuesAnsModel(torch.nn.Module):
         self.memory = self.init_memory()
         self.current_mem_size = 0
         self.temporal = temporal
-        self.embedding_A = torch.nn.Linear(self.vocab_size,self.embedding_dim,bias=False)
+        for i in range(self.num_hops):
+            self.embedding_A = torch.nn.Linear(self.vocab_size,self.embedding_dim,bias=False)
+            self.embedding_C = torch.nn.Linear(self.vocab_size,self.embedding_dim,bias=False)
+            torch.nn.init.xavier_normal(self.embedding_A.weight)
+            torch.nn.init.xavier_normal(self.embedding_C.weight)
         self.embedding_B = torch.nn.Linear(self.vocab_size,self.embedding_dim,bias=False)
-        self.embedding_C = torch.nn.Linear(self.vocab_size,self.embedding_dim,bias=False)
+        
         self.W = torch.nn.Linear(self.embedding_dim,self.vocab_size,bias=False)
         
         self.temporal_A = torch.nn.Parameter(torch.randn(self.max_mem_size,self.embedding_dim).float())
         self.temporal_C = torch.nn.Parameter(torch.randn(self.max_mem_size,self.embedding_dim).float())
-        
-        torch.nn.init.xavier_normal(self.embedding_A.weight)
         torch.nn.init.xavier_normal(self.embedding_B.weight)
-        torch.nn.init.xavier_normal(self.embedding_C.weight)
         torch.nn.init.xavier_normal(self.W.weight)
         self.softmax = torch.nn.Softmax(dim=0)
     
@@ -90,15 +93,15 @@ class QuesAnsModel(torch.nn.Module):
             self.question = Variable(torch.from_numpy(seq).float()).view(1,-1)
 #             self.question = Variable(torch.from_numpy(seq).float().cuda()).view(1,-1)
             ques_d = self.embedding_B(self.question)
-            if self.temporal == True:
-#                 temp_mem = np.flipud(np.array(self.memory.data))
-#                 self.memory = Variable(torch.from_numpy(temp_mem.copy())).float()  
-                current_A = self.embedding_A(self.memory) + self.temporal_A
-                current_C = self.embedding_C(self.memory) + self.temporal_C
-            else:
-                current_A = self.embedding_A(self.memory)
-                current_C = self.embedding_C(self.memory)
             for i in range(self.num_hops):
+                if self.temporal == True:
+    #                 temp_mem = np.flipud(np.array(self.memory.data))
+    #                 self.memory = Variable(torch.from_numpy(temp_mem.copy())).float()
+                    current_A = self.embedding_A(self.memory) + self.temporal_A
+                    current_C = self.embedding_C(self.memory) + self.temporal_C
+                else:
+                    current_A = self.embedding_A(self.memory)
+                    current_C = self.embedding_C(self.memory)
                 P = self.softmax(torch.mm(ques_d, current_A.t()).t())
                 o = torch.mm(P.t(),current_C) + ques_d
                 ques_d = o
@@ -178,20 +181,40 @@ def train(model,tr_dt_bow,vd_dt_bow,opt=optim.Adam,epochs=10,eta=0.0001):
         eps.append(epoch)
         print(epoch,'Training Loss : ',l_tr[-1],' , Training Acc : ',accuracy_tr[-1])
         print(epoch,'Validation Loss : ',l_vd[-1],' , Validation Acc : ',accuracy_vd[-1])
-        
+    print('end')
+    file_path = "./observations/"
+    directory = os.path.dirname(file_path)
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+        print('dfddf')
+    file_path = "./saved_models/"
+    directory = os.path.dirname(file_path)
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    ts = strftime("%Y-%m-%d__%Hh%Mm%Ss_", gmtime())
+    if os.path.exists('saved_models/model' + str(ts) + '.pt'):
+        os.remove('saved_models/model' + str(ts) + '.pt')
+    
+    torch.save(model,'saved_models/model' + str(ts) + '.pt')    
+    
+    fig = plt.figure()
     plt.plot(eps,l_tr)
     plt.plot(eps,l_vd)
     plt.xlabel('Epochs')
     plt.ylabel('Loss')
     plt.legend(['Training Loss','Validation Loss'])
+    fig.savefig('observations/LossPlot_' + str(ts) + '.png', dpi=fig.dpi)
     plt.show()
-
+    
+    fig = plt.figure()
     plt.plot(eps,accuracy_tr)
     plt.plot(eps,accuracy_vd)
     plt.xlabel('Epochs')
     plt.ylabel('Accuracy%')
     plt.legend(['Training Accuracy','Validation Accuracy'],loc=4)
     plt.show()
+    fig.savefig('observations/AccuracyPlot_' + str(ts) + '.png', dpi=fig.dpi)
+    
     return l_tr, accuracy_tr, l_vd, accuracy_vd
 
 
