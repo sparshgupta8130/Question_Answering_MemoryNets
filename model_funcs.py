@@ -70,7 +70,7 @@ class QuesAnsModel(torch.nn.Module):
 #                 aux[i,j] = -10000000000
         return Variable(aux,requires_grad=False)
 
-    def forward(self, seq, tag, LS = 0):
+    def forward(self, seq, tag, LS = 0, same= 0):
         if tag == 's':
             if self.current_mem_size < self.max_mem_size:
                 self.memory[self.current_mem_size] = Variable(torch.from_numpy(seq).float()).view(1,-1)
@@ -91,26 +91,47 @@ class QuesAnsModel(torch.nn.Module):
         else:
             self.question = Variable(torch.from_numpy(seq).float()).view(1,-1)
 #             self.question = Variable(torch.from_numpy(seq).float().cuda()).view(1,-1)
+            if same == 0:
             ques_d = self.embedding_B(self.question)
-            if self.temporal == True:
-#                 temp_mem = np.flipud(np.array(self.memory.data))
-#                 self.memory = Variable(torch.from_numpy(temp_mem.copy())).float()
-                current_A = self.embedding_A(self.memory) + self.temporal_A
-                current_C = self.embedding_C(self.memory) + self.temporal_C
-            else:
-                current_A = self.embedding_A(self.memory)
-                current_C = self.embedding_C(self.memory)
             
-            aux = torch.mm(ques_d, current_A.t()).t()
-            for i in range(self.num_hops):
-                if LS == 0:
-                    P = self.softmax(aux)
+                if self.temporal == True:
+    #                 temp_mem = np.flipud(np.array(self.memory.data))
+    #                 self.memory = Variable(torch.from_numpy(temp_mem.copy())).float()
+                    current_A = self.embedding_A(self.memory) + self.temporal_A
+                    current_C = self.embedding_C(self.memory) + self.temporal_C
                 else:
-                    P = aux
-                o = torch.mm(P.t(),current_C) + ques_d
-                ques_d = o
-            output = self.W(o)
-            return output
+                    current_A = self.embedding_A(self.memory)
+                    current_C = self.embedding_C(self.memory)
+
+                aux = torch.mm(ques_d, current_A.t()).t()
+                for i in range(self.num_hops):
+                    if LS == 0:
+                        P = self.softmax(aux)
+                    else:
+                        P = aux
+                    o = torch.mm(P.t(),current_C) + ques_d
+                    ques_d = o
+                output = self.W(o)
+                return output
+            else:
+                ques_d = self.embedding_A(self.question)
+                if self.temporal == True:
+    #                 temp_mem = np.flipud(np.array(self.memory.data))
+    #                 self.memory = Variable(torch.from_numpy(temp_mem.copy())).float()
+                    current_A = self.embedding_A(self.memory) + self.temporal_A
+                else:
+                    current_A = self.embedding_A(self.memory)
+
+                aux = torch.mm(ques_d, current_A.t()).t()
+                for i in range(self.num_hops):
+                    if LS == 0:
+                        P = self.softmax(aux)
+                    else:
+                        P = aux
+                    o = torch.mm(P.t(),current_A) + ques_d
+                    ques_d = o
+                output = self.W(o)
+                return output
 
 
 # In[5]:
