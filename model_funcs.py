@@ -40,7 +40,7 @@ def comp(out,target):
 
 
 class QuesAnsModel(torch.nn.Module):
-    def __init__(self,embedding_dim, vocab_size, num_hops = 1, max_mem_size=15,temporal=False):
+    def __init__(self,embedding_dim, vocab_size, num_hops = 1, max_mem_size=15,temporal=False,same=0):
         super(QuesAnsModel,self).__init__()
         self.max_mem_size = max_mem_size
         self.vocab_size = vocab_size
@@ -49,6 +49,7 @@ class QuesAnsModel(torch.nn.Module):
         self.memory = self.init_memory()
         self.current_mem_size = 0
         self.temporal = temporal
+        self.same = same
         self.embedding_A = torch.nn.Linear(self.vocab_size,self.embedding_dim,bias=False)
         self.embedding_C = torch.nn.Linear(self.vocab_size,self.embedding_dim,bias=False)
         torch.nn.init.xavier_normal(self.embedding_A.weight)
@@ -70,7 +71,7 @@ class QuesAnsModel(torch.nn.Module):
 #                 aux[i,j] = -10000000000
         return Variable(aux,requires_grad=False)
 
-    def forward(self, seq, tag, LS = 0, same = 0):
+    def forward(self, seq, tag, LS = 0):
         if tag == 's':
             if self.current_mem_size < self.max_mem_size:
                 self.memory[self.current_mem_size] = Variable(torch.from_numpy(seq).float()).view(1,-1)
@@ -91,9 +92,8 @@ class QuesAnsModel(torch.nn.Module):
         else:
             self.question = Variable(torch.from_numpy(seq).float()).view(1,-1)
 #             self.question = Variable(torch.from_numpy(seq).float().cuda()).view(1,-1)
-            if same == 0:
-            ques_d = self.embedding_B(self.question)
-            
+            if self.same == 0:
+                ques_d = self.embedding_B(self.question)
                 if self.temporal == True:
     #                 temp_mem = np.flipud(np.array(self.memory.data))
     #                 self.memory = Variable(torch.from_numpy(temp_mem.copy())).float()
@@ -103,8 +103,8 @@ class QuesAnsModel(torch.nn.Module):
                     current_A = self.embedding_A(self.memory)
                     current_C = self.embedding_C(self.memory)
 
-                aux = torch.mm(ques_d, current_A.t()).t()
                 for i in range(self.num_hops):
+                    aux = torch.mm(ques_d, current_A.t()).t()
                     if LS == 0:
                         P = self.softmax(aux)
                     else:
@@ -122,8 +122,8 @@ class QuesAnsModel(torch.nn.Module):
                 else:
                     current_A = self.embedding_A(self.memory)
 
-                aux = torch.mm(ques_d, current_A.t()).t()
                 for i in range(self.num_hops):
+                    aux = torch.mm(ques_d, current_A.t()).t()
                     if LS == 0:
                         P = self.softmax(aux)
                     else:
@@ -137,7 +137,7 @@ class QuesAnsModel(torch.nn.Module):
 # In[5]:
 
 
-def train(model,tr_dt_bow,vd_dt_bow,opt=optim.Adam,epochs=10,eta=0.0001,LS=0,ls_thres=0.001,same=0):
+def train(model,tr_dt_bow,vd_dt_bow,opt=optim.Adam,epochs=10,eta=0.0001,LS=0,ls_thres=0.001):
     optimizer = opt(model.parameters(),lr=eta)
     loss = torch.nn.CrossEntropyLoss()
     print(optimizer)
@@ -174,7 +174,7 @@ def train(model,tr_dt_bow,vd_dt_bow,opt=optim.Adam,epochs=10,eta=0.0001,LS=0,ls_
                 model(tr_dt_bow[i,:-1],tag)
             else:
                 count+=1
-                out = model(tr_dt_bow[i,:-1],tag,LS=ls,same=same)
+                out = model(tr_dt_bow[i,:-1],tag,LS=ls)
                 target = Variable(torch.from_numpy(np.array([tr_dt_bow[i,-1]])).type(torch.LongTensor))
 #                 target = Variable(torch.from_numpy(np.array([tr_dt_bow[i,-1]])).type(torch.LongTensor).cuda())
                 optimizer.zero_grad()
