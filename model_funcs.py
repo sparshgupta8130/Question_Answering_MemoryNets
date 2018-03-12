@@ -117,55 +117,44 @@ class QuesAnsModel(torch.nn.Module):
             return True
         
         else:
-            #print(type(seq_pe[0]))
-            #print(type(seq[0]))
-            
-#             self.question = Variable(torch.from_numpy(seq).float().cuda()).view(1,-1)
             if self.same == 0:
                 if self.positional == True:
                     self.question = Variable(torch.from_numpy(seq_pe).float()).view(1,-1)
-                    current_A = torch.zeros((self.max_mem_size,self.embedding_dim))
-                    current_C = torch.zeros((self.max_mem_size,self.embedding_dim))
-                    ques_d = torch.zeros((1,self.embedding_dim))
+                    current_A = torch.zeros((0,self.embedding_dim))
+                    current_C = torch.zeros((0,self.embedding_dim))
 
                     for i in range(len(self.memory)):
                         J = self.memory[i].data.shape[1]
-                        auxa = []
-                        auxc = []
+                        addr_list = []
 
                         for j in range(J):
-                            x = torch.zeros((1,self.vocab_size))
-                            x[0,int(self.memory[i].data[0,j])] = 1
-                            x = Variable(x)
-                            buffa = self.embedding_A(x).view(-1)
-                            buffc = self.embedding_C(x).view(-1)
-                            auxa.append(buffa.data.numpy())
-                            auxc.append(buffc.data.numpy())
-                        auxa = Variable(torch.from_numpy(np.array(auxa)).float())
-                        auxc = Variable(torch.from_numpy(np.array(auxc)).float())
-                        out, _ = self.lstm_A(auxa.view(len(auxa),1,-1),self.hidden_A)
+                            addr_list.append(int(self.memory[i].data[0,j]))
+                        auxa = torch.index_select(self.embedding_A.weight.t(),0,Variable(torch.LongTensor(addr_list)))
+                        auxc = torch.index_select(self.embedding_C.weight.t(),0,Variable(torch.LongTensor(addr_list)))
+                        out, _ = self.lstm_A(auxa.view(auxa.data.shape[0],1,-1),self.hidden_A)
                         out = out.view(out.data.shape[0],out.data.shape[2])
-                        current_A[i,:] = out.data[-1,:]
-                        out, _ = self.lstm_C(auxc.view(len(auxc),1,-1),self.hidden_C)
+                        temp = torch.index_select(out,0,Variable(torch.LongTensor([J-1])))
+                        current_A = torch.cat((current_A,temp.data),0)
+                        out, _ = self.lstm_C(auxa.view(auxc.data.shape[0],1,-1),self.hidden_C)
                         out = out.view(out.data.shape[0],out.data.shape[2])
-                        current_C[i,:] = out.data[-1,:]
+                        temp = torch.index_select(out,0,Variable(torch.LongTensor([J-1])))
+                        current_C = torch.cat((current_C,temp.data),0)
                         
                     J = self.question.data.shape[1]
-                    aux = []
+                    addr_list = []
                     for j in range(J):
-                        x = torch.zeros((1,self.vocab_size))
-                        x[0,int(self.question.data[0,j])] = 1
-                        x = Variable(x)
-                        buff = self.embedding_B(x).view(-1)
-                        aux.append(buff.data.numpy())
-                    aux = Variable(torch.from_numpy(np.array(aux)).float())
-                    out, _ = self.lstm_B(aux.view(len(aux),1,-1),self.hidden_B)
+                        addr_list.append(int(self.question.data[0,j]))
+                    aux = torch.index_select(self.embedding_B.weight.t(),0,Variable(torch.LongTensor(addr_list)))
+                    out, _ = self.lstm_B(aux.view(aux.data.shape[0],1,-1),self.hidden_B)
                     out = out.view(out.data.shape[0],out.data.shape[2])
-                    ques_d[0,:] = out.data[-1,:]
-                    
+                    ques_d = torch.index_select(out,0,Variable(torch.LongTensor([J-1])))
                     current_A = Variable(current_A)
                     current_C = Variable(current_C)
-                    ques_d = Variable(ques_d)
+                    curr_len = current_A.data.shape[0]
+                    if self.max_mem_size != curr_len:
+                        app_mat = Variable(torch.zeros((self.max_mem_size-curr_len,self.embedding_dim)))
+                        current_A = torch.cat((current_A,app_mat),0)
+                        current_C = torch.cat((current_C,app_mat),0)
                     
                     if self.temporal == True:
                         current_A = current_A + self.temporal_A
@@ -197,52 +186,36 @@ class QuesAnsModel(torch.nn.Module):
             else:
                 if self.positional == True:
                     self.question = Variable(torch.from_numpy(seq_pe).float()).view(1,-1)
-                    current_A = torch.zeros((self.max_mem_size,self.embedding_dim))
-                    #current_C = torch.zeros((self.max_mem_size,self.embedding_dim))
-                    ques_d = torch.zeros((1,self.embedding_dim))
+                    current_A = torch.zeros((0,self.embedding_dim))
 
                     for i in range(len(self.memory)):
                         J = self.memory[i].data.shape[1]
-                        auxa = []
-                        #auxc = []
+                        addr_list = []
 
                         for j in range(J):
-                            x = torch.zeros((1,self.vocab_size))
-                            x[0,int(self.memory[i].data[0,j])] = 1
-                            x = Variable(x)
-                            buffa = self.embedding_A(x).view(-1)
-                            #buffc = self.embedding_C(x).view(-1)
-                            auxa.append(buffa.data.numpy())
-                            #auxc.append(buffc.data.numpy())
-                        auxa = Variable(torch.from_numpy(np.array(auxa)).float())
-                        #auxc = Variable(torch.from_numpy(np.array(auxc)).float())
-                        out, _ = self.lstm_A(auxa.view(len(auxa),1,-1),self.hidden_A)
+                            addr_list.append(int(self.memory[i].data[0,j]))
+                        auxa = torch.index_select(self.embedding_A.weight.t(),0,Variable(torch.LongTensor(addr_list)))
+                        out, _ = self.lstm_A(auxa.view(auxa.data.shape[0],1,-1),self.hidden_A)
                         out = out.view(out.data.shape[0],out.data.shape[2])
-                        current_A[i,:] = out.data[-1,:]
-                        #out, _ = self.lstm_C(auxc.view(len(auxc),1,-1),self.hidden_C)
-                        #out = out.view(out.data.shape[0],out.data.shape[2])
-                        #current_C[i,:] = out.data[-1,:]
+                        temp = torch.index_select(out,0,Variable(torch.LongTensor([J-1])))
+                        current_A = torch.cat((current_A,temp.data),0)
                         
                     J = self.question.data.shape[1]
-                    aux = []
+                    addr_list = []
                     for j in range(J):
-                        x = torch.zeros((1,self.vocab_size))
-                        x[0,int(self.question.data[0,j])] = 1
-                        x = Variable(x)
-                        buff = self.embedding_A(x).view(-1)
-                        aux.append(buff.data.numpy())
-                    aux = Variable(torch.from_numpy(np.array(aux)).float())
-                    out, _ = self.lstm_A(aux.view(len(aux),1,-1),self.hidden_A)
+                        addr_list.append(int(self.question.data[0,j]))
+                    aux = torch.index_select(self.embedding_A.weight.t(),0,Variable(torch.LongTensor(addr_list)))
+                    out, _ = self.lstm_A(aux.view(aux.data.shape[0],1,-1),self.hidden_A)
                     out = out.view(out.data.shape[0],out.data.shape[2])
-                    ques_d[0,:] = out.data[-1,:]
-                    
+                    ques_d = torch.index_select(out,0,Variable(torch.LongTensor([J-1])))
                     current_A = Variable(current_A)
-                    #current_C = Variable(current_C)
-                    ques_d = Variable(ques_d)
+                    curr_len = current_A.data.shape[0]
+                    if self.max_mem_size != curr_len:
+                        app_mat = Variable(torch.zeros((self.max_mem_size-curr_len,self.embedding_dim)))
+                        current_A = torch.cat((current_A,app_mat),0)
                     
                     if self.temporal == True:
                         current_A = current_A + self.temporal_A
-                        #current_C = current_C + self.temporal_C
             
                 else:
                     self.question = Variable(torch.from_numpy(seq).float()).view(1,-1)
