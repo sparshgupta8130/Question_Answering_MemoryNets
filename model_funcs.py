@@ -40,28 +40,37 @@ def comp(out,target):
 
 
 class QuesAnsModel(torch.nn.Module):
-    def __init__(self,embedding_dim, vocab_size, num_hops = 1, max_mem_size=15,temporal=False,same=0):
+    def __init__(self,embedding_dim, vocab_size, num_hops = 1, max_mem_size=15,temporal=False,same=0,positional=False):
         super(QuesAnsModel,self).__init__()
         self.max_mem_size = max_mem_size
         self.vocab_size = vocab_size
         self.num_hops = num_hops
         self.embedding_dim = embedding_dim
-        self.memory = self.init_memory()
         self.current_mem_size = 0
         self.temporal = temporal
+        self.positional = positional
         self.same = same
+        self.num_layers = 1
+        if self.positional == True:
+            self.memory = []
+        else:
+            self.memory = self.init_memory()
         self.embedding_A = torch.nn.Linear(self.vocab_size,self.embedding_dim,bias=False)
         self.embedding_C = torch.nn.Linear(self.vocab_size,self.embedding_dim,bias=False)
         torch.nn.init.xavier_normal(self.embedding_A.weight)
         torch.nn.init.xavier_normal(self.embedding_C.weight)
         self.embedding_B = torch.nn.Linear(self.vocab_size,self.embedding_dim,bias=False)
-        
         self.W = torch.nn.Linear(self.embedding_dim,self.vocab_size,bias=False)
-        
         self.temporal_A = torch.nn.Parameter(torch.randn(self.max_mem_size,self.embedding_dim).float())
         self.temporal_C = torch.nn.Parameter(torch.randn(self.max_mem_size,self.embedding_dim).float())
         torch.nn.init.xavier_normal(self.embedding_B.weight)
         torch.nn.init.xavier_normal(self.W.weight)
+        self.lstm_A = torch.nn.LSTM(self.embedding_dim,self.embedding_dim,self.num_layers)
+        self.lstm_B = torch.nn.LSTM(self.embedding_dim,self.embedding_dim,self.num_layers)
+        self.lstm_C = torch.nn.LSTM(self.embedding_dim,self.embedding_dim,self.num_layers)
+        self.hidden_A = self.init_hidden()
+        self.hidden_B = self.init_hidden()
+        self.hidden_C = self.init_hidden()
         self.softmax = torch.nn.Softmax(dim=0)
     
     def init_memory(self):
@@ -70,38 +79,109 @@ class QuesAnsModel(torch.nn.Module):
 #             for j in range(aux.shape[1]):
 #                 aux[i,j] = -10000000000
         return Variable(aux,requires_grad=False)
+    
+    def init_hidden(self):
+        return (Variable(torch.zeros(self.num_layers,1,self.embedding_dim)),
+               Variable(torch.zeros(self.num_layers,1,self.embedding_dim)))
 
-    def forward(self, seq, tag, LS = 0):
+    def forward(self, seq, seq_pe, tag, LS = 0):
         if tag == 's':
-            if self.current_mem_size < self.max_mem_size:
-                self.memory[self.current_mem_size] = Variable(torch.from_numpy(seq).float()).view(1,-1)
-                self.current_mem_size += 1
+            if self.positional == False:
+                if self.current_mem_size < self.max_mem_size:
+                    self.memory[self.current_mem_size] = Variable(torch.from_numpy(seq).float()).view(1,-1)
+                    self.current_mem_size += 1
+                else:
+                    aux1 = self.memory.data[1:,:].numpy()
+                    aux1 = np.vstack((aux1,seq))
+                    self.memory = Variable(torch.from_numpy(aux1).float())
             else:
-                aux1 = self.memory.data[1:,:].numpy()
-                aux1 = np.vstack((aux1,seq))
-                self.memory = Variable(torch.from_numpy(aux1).float())
+                if self.current_mem_size < self.max_mem_size:
+                    self.memory.append(Variable(torch.from_numpy(seq_pe).float()).view(1,-1))
+                    self.current_mem_size += 1
+                else:
+                    del self.memory[0]
+                    self.memory.append(Variable(torch.from_numpy(seq_pe).float()).view(1,-1))
+                    
             return True
         
         elif tag == 'f':    
             del self.memory
-            self.memory = self.init_memory()
-            self.current_mem_size = 1
-            self.memory[0] = Variable(torch.from_numpy(seq).float()).view(1,-1)
+            if self.positional == False:
+                self.memory = self.init_memory()
+                self.current_mem_size = 1
+                self.memory[0] = Variable(torch.from_numpy(seq).float()).view(1,-1)
+            else:
+                self.memory = []
+                self.current_mem_size = 1
+                self.memory.append(Variable(torch.from_numpy(seq_pe).float()).view(1,-1))
             return True
         
         else:
-            self.question = Variable(torch.from_numpy(seq).float()).view(1,-1)
+            #print(type(seq_pe[0]))
+            #print(type(seq[0]))
+            
 #             self.question = Variable(torch.from_numpy(seq).float().cuda()).view(1,-1)
             if self.same == 0:
-                ques_d = self.embedding_B(self.question)
-                if self.temporal == True:
-    #                 temp_mem = np.flipud(np.array(self.memory.data))
-    #                 self.memory = Variable(torch.from_numpy(temp_mem.copy())).float()
-                    current_A = self.embedding_A(self.memory) + self.temporal_A
-                    current_C = self.embedding_C(self.memory) + self.temporal_C
+                if self.positional == True:
+                    self.question = Variable(torch.from_numpy(seq_pe).float()).view(1,-1)
+                    current_A = torch.zeros((self.max_mem_size,self.embedding_dim))
+                    current_C = torch.zeros((self.max_mem_size,self.embedding_dim))
+                    ques_d = torch.zeros((1,self.embedding_dim))
+
+                    for i in range(len(self.memory)):
+                        J = self.memory[i].data.shape[1]
+                        auxa = []
+                        auxc = []
+
+                        for j in range(J):
+                            x = torch.zeros((1,self.vocab_size))
+                            x[0,int(self.memory[i].data[0,j])] = 1
+                            x = Variable(x)
+                            buffa = self.embedding_A(x).view(-1)
+                            buffc = self.embedding_C(x).view(-1)
+                            auxa.append(buffa.data.numpy())
+                            auxc.append(buffc.data.numpy())
+                        auxa = Variable(torch.from_numpy(np.array(auxa)).float())
+                        auxc = Variable(torch.from_numpy(np.array(auxc)).float())
+                        out, _ = self.lstm_A(auxa.view(len(auxa),1,-1),self.hidden_A)
+                        out = out.view(out.data.shape[0],out.data.shape[2])
+                        current_A[i,:] = out.data[-1,:]
+                        out, _ = self.lstm_C(auxc.view(len(auxc),1,-1),self.hidden_C)
+                        out = out.view(out.data.shape[0],out.data.shape[2])
+                        current_C[i,:] = out.data[-1,:]
+                        
+                    J = self.question.data.shape[1]
+                    aux = []
+                    for j in range(J):
+                        x = torch.zeros((1,self.vocab_size))
+                        x[0,int(self.question.data[0,j])] = 1
+                        x = Variable(x)
+                        buff = self.embedding_B(x).view(-1)
+                        aux.append(buff.data.numpy())
+                    aux = Variable(torch.from_numpy(np.array(aux)).float())
+                    out, _ = self.lstm_B(aux.view(len(aux),1,-1),self.hidden_B)
+                    out = out.view(out.data.shape[0],out.data.shape[2])
+                    ques_d[0,:] = out.data[-1,:]
+                    
+                    current_A = Variable(current_A)
+                    current_C = Variable(current_C)
+                    ques_d = Variable(ques_d)
+                    
+                    if self.temporal == True:
+                        current_A = current_A + self.temporal_A
+                        current_C = current_C + self.temporal_C
+            
                 else:
-                    current_A = self.embedding_A(self.memory)
-                    current_C = self.embedding_C(self.memory)
+                    self.question = Variable(torch.from_numpy(seq).float()).view(1,-1)
+                    ques_d = self.embedding_B(self.question)
+                    if self.temporal == True:
+        #                 temp_mem = np.flipud(np.array(self.memory.data))
+        #                 self.memory = Variable(torch.from_numpy(temp_mem.copy())).float()
+                        current_A = self.embedding_A(self.memory) + self.temporal_A
+                        current_C = self.embedding_C(self.memory) + self.temporal_C
+                    else:
+                        current_A = self.embedding_A(self.memory)
+                        current_C = self.embedding_C(self.memory)
 
                 for i in range(self.num_hops):
                     aux = torch.mm(ques_d, current_A.t()).t()
@@ -113,14 +193,68 @@ class QuesAnsModel(torch.nn.Module):
                     ques_d = o
                 output = self.W(o)
                 return output
+            
             else:
-                ques_d = self.embedding_A(self.question)
-                if self.temporal == True:
-    #                 temp_mem = np.flipud(np.array(self.memory.data))
-    #                 self.memory = Variable(torch.from_numpy(temp_mem.copy())).float()
-                    current_A = self.embedding_A(self.memory) + self.temporal_A
+                if self.positional == True:
+                    self.question = Variable(torch.from_numpy(seq_pe).float()).view(1,-1)
+                    current_A = torch.zeros((self.max_mem_size,self.embedding_dim))
+                    #current_C = torch.zeros((self.max_mem_size,self.embedding_dim))
+                    ques_d = torch.zeros((1,self.embedding_dim))
+
+                    for i in range(len(self.memory)):
+                        J = self.memory[i].data.shape[1]
+                        auxa = []
+                        #auxc = []
+
+                        for j in range(J):
+                            x = torch.zeros((1,self.vocab_size))
+                            x[0,int(self.memory[i].data[0,j])] = 1
+                            x = Variable(x)
+                            buffa = self.embedding_A(x).view(-1)
+                            #buffc = self.embedding_C(x).view(-1)
+                            auxa.append(buffa.data.numpy())
+                            #auxc.append(buffc.data.numpy())
+                        auxa = Variable(torch.from_numpy(np.array(auxa)).float())
+                        #auxc = Variable(torch.from_numpy(np.array(auxc)).float())
+                        out, _ = self.lstm_A(auxa.view(len(auxa),1,-1),self.hidden_A)
+                        out = out.view(out.data.shape[0],out.data.shape[2])
+                        current_A[i,:] = out.data[-1,:]
+                        #out, _ = self.lstm_C(auxc.view(len(auxc),1,-1),self.hidden_C)
+                        #out = out.view(out.data.shape[0],out.data.shape[2])
+                        #current_C[i,:] = out.data[-1,:]
+                        
+                    J = self.question.data.shape[1]
+                    aux = []
+                    for j in range(J):
+                        x = torch.zeros((1,self.vocab_size))
+                        x[0,int(self.question.data[0,j])] = 1
+                        x = Variable(x)
+                        buff = self.embedding_A(x).view(-1)
+                        aux.append(buff.data.numpy())
+                    aux = Variable(torch.from_numpy(np.array(aux)).float())
+                    out, _ = self.lstm_A(aux.view(len(aux),1,-1),self.hidden_A)
+                    out = out.view(out.data.shape[0],out.data.shape[2])
+                    ques_d[0,:] = out.data[-1,:]
+                    
+                    current_A = Variable(current_A)
+                    #current_C = Variable(current_C)
+                    ques_d = Variable(ques_d)
+                    
+                    if self.temporal == True:
+                        current_A = current_A + self.temporal_A
+                        #current_C = current_C + self.temporal_C
+            
                 else:
-                    current_A = self.embedding_A(self.memory)
+                    self.question = Variable(torch.from_numpy(seq).float()).view(1,-1)
+                    ques_d = self.embedding_A(self.question)
+                    if self.temporal == True:
+        #                 temp_mem = np.flipud(np.array(self.memory.data))
+        #                 self.memory = Variable(torch.from_numpy(temp_mem.copy())).float()
+                        current_A = self.embedding_A(self.memory) + self.temporal_A
+                        #current_C = self.embedding_C(self.memory) + self.temporal_C
+                    else:
+                        current_A = self.embedding_A(self.memory)
+                        #current_C = self.embedding_C(self.memory)
 
                 for i in range(self.num_hops):
                     aux = torch.mm(ques_d, current_A.t()).t()
@@ -137,7 +271,7 @@ class QuesAnsModel(torch.nn.Module):
 # In[5]:
 
 
-def train(model,tr_dt_bow,vd_dt_bow,opt=optim.Adam,epochs=10,eta=0.0001,LS=0,ls_thres=0.001):
+def train(model,tr_dt_bow,vd_dt_bow,tr_dt_pe, vd_dt_pe,opt=optim.Adam,epochs=10,eta=0.0001,LS=0,ls_thres=0.001,isLSTM=True):
     optimizer = opt(model.parameters(),lr=eta)
     loss = torch.nn.CrossEntropyLoss()
     print(optimizer)
@@ -168,13 +302,13 @@ def train(model,tr_dt_bow,vd_dt_bow,opt=optim.Adam,epochs=10,eta=0.0001,LS=0,ls_
             tag = 'q'
             if(tr_dt_bow[i,-1]==-1):
                 tag = 's'
-                model(tr_dt_bow[i,:-1],tag)
+                model(tr_dt_bow[i,:-1],tr_dt_pe[i][0,:-1],tag)
             elif(tr_dt_bow[i,-1]==-2):
                 tag = 'f'
-                model(tr_dt_bow[i,:-1],tag)
+                model(tr_dt_bow[i,:-1],tr_dt_pe[i][0,:-1],tag)
             else:
                 count+=1
-                out = model(tr_dt_bow[i,:-1],tag,LS=ls)
+                out = model(tr_dt_bow[i,:-1],tr_dt_pe[i][0,:-1],tag,LS=ls)
                 target = Variable(torch.from_numpy(np.array([tr_dt_bow[i,-1]])).type(torch.LongTensor))
 #                 target = Variable(torch.from_numpy(np.array([tr_dt_bow[i,-1]])).type(torch.LongTensor).cuda())
                 optimizer.zero_grad()
@@ -196,13 +330,13 @@ def train(model,tr_dt_bow,vd_dt_bow,opt=optim.Adam,epochs=10,eta=0.0001,LS=0,ls_
             tag = 'q'
             if(vd_dt_bow[i,-1]==-1):
                 tag = 's'
-                model(vd_dt_bow[i,:-1],tag)
+                model(vd_dt_bow[i,:-1],vd_dt_pe[i][0,:-1],tag)
             elif(vd_dt_bow[i,-1]==-2):
                 tag = 'f'
-                model(vd_dt_bow[i,:-1],tag)
+                model(vd_dt_bow[i,:-1],vd_dt_pe[i][0,:-1],tag)
             else:
                 count+=1
-                out = model(vd_dt_bow[i,:-1],tag)
+                out = model(vd_dt_bow[i,:-1],vd_dt_pe[i][0,:-1],tag)
                 target = Variable(torch.from_numpy(np.array([vd_dt_bow[i,-1]])).type(torch.LongTensor))
 #                 target = Variable(torch.from_numpy(np.array([vd_dt_bow[i,-1]])).type(torch.LongTensor).cuda())
                 optimizer.zero_grad()
@@ -266,23 +400,23 @@ def train(model,tr_dt_bow,vd_dt_bow,opt=optim.Adam,epochs=10,eta=0.0001,LS=0,ls_
 # In[6]:
 
 
-def test(model,test_dt):
-    test_shape = test_dt.shape
+def test(model,test_dt_bow,test_dt_pe):
+    test_shape = test_dt_bow.shape
     n_corr = 0;
     count = 0;
     for i in range(test_shape[0]):
         l_temp = 0
         tag = 'q'
-        if(test_dt[i,-1]==-1):
+        if(test_dt_bow[i,-1]==-1):
             tag = 's'
-            model(test_dt[i,:-1],tag)
-        elif(test_dt[i,-1]==-2):
+            model(test_dt_bow[i,:-1],test_dt_pe[i][0,:-1],tag)
+        elif(test_dt_bow[i,-1]==-2):
             tag = 'f'
-            model(test_dt[i,:-1],tag)
+            model(test_dt_bow[i,:-1],test_dt_pe[i][0,:-1],tag)
         else:
             count+=1
-            out = model(test_dt[i,:-1],tag)
-            target = Variable(torch.from_numpy(np.array([test_dt[i,-1]])).type(torch.LongTensor))
+            out = model(test_dt_bow[i,:-1],test_dt_pe[0,:-1],tag)
+            target = Variable(torch.from_numpy(np.array([test_dt_bow[i,-1]])).type(torch.LongTensor))
 #                 target = Variable(torch.from_numpy(np.array([vd_dt_bow[i,-1]])).type(torch.LongTensor).cuda())
             n_corr += comp(out,target)
     accuracy = n_corr/count*100
