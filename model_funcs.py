@@ -182,7 +182,7 @@ class QuesAnsModel(torch.nn.Module):
                         P = self.softmax(aux)
                     else:
                         P = aux
-                    o = torch.mm(P.t(),current_C)# + ques_d
+                    o = torch.mm(P.t(),current_C) + ques_d
                     ques_d = o
                 output = self.W(o)
                 return output
@@ -245,7 +245,7 @@ class QuesAnsModel(torch.nn.Module):
                         P = self.softmax(aux)
                     else:
                         P = aux
-                    o = torch.mm(P.t(),current_A)# + ques_d
+                    o = torch.mm(P.t(),current_A) + ques_d
                     ques_d = o
                 output = self.W(o)
                 return output
