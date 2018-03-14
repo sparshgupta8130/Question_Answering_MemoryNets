@@ -277,11 +277,11 @@ def train(model,tr_dt_bow,vd_dt_bow,tr_dt_pe, vd_dt_pe,opt=optim.Adam,epochs=10,
         ls_only = 1
     
     for epoch in range(epochs):
-        count=0;
+        count=0
         ################################# Training
-        n_corr = 0;
+        n_corr = 0
+        l_temp = 0
         for i in range(tr_shape[0]):
-            l_temp = 0
             tag = 'q'
             if(tr_dt_bow[i,-1]==-1):
                 tag = 's'
@@ -301,15 +301,15 @@ def train(model,tr_dt_bow,vd_dt_bow,tr_dt_pe, vd_dt_pe,opt=optim.Adam,epochs=10,
                 l_temp += loss_tr.data[0]
                 n_corr += comp(out,target)
         acc_tr = n_corr/count*100
-        l_tr.append(l_temp)
+        l_tr.append(l_temp/tr_shape[0])
         accuracy_tr.append(acc_tr)
 #         print(model.embedding_B.weight[0:2,2:9])
         
         ############################# Validation
-        n_corr = 0;
-        count = 0;
+        n_corr = 0
+        count = 0
+        l_temp = 0
         for i in range(vd_shape[0]):
-            l_temp = 0
             tag = 'q'
             if(vd_dt_bow[i,-1]==-1):
                 tag = 's'
@@ -327,7 +327,7 @@ def train(model,tr_dt_bow,vd_dt_bow,tr_dt_pe, vd_dt_pe,opt=optim.Adam,epochs=10,
                 l_temp += loss_vd.data[0]
                 n_corr += comp(out,target)
         acc_vd = n_corr/count*100
-        l_vd.append(l_temp)
+        l_vd.append(l_temp/vd_shape[0])
         accuracy_vd.append(acc_vd)
         if not ls_only:
             n = len(l_vd)
@@ -398,7 +398,7 @@ def test(model,test_dt_bow,test_dt_pe):
             model(test_dt_bow[i,:-1],test_dt_pe[i][0,:-1],tag)
         else:
             count+=1
-            out = model(test_dt_bow[i,:-1],test_dt_pe[0,:-1],tag)
+            out = model(test_dt_bow[i,:-1],test_dt_pe[i][0,:-1],tag)
             target = Variable(torch.from_numpy(np.array([test_dt_bow[i,-1]])).type(torch.LongTensor))
 #                 target = Variable(torch.from_numpy(np.array([vd_dt_bow[i,-1]])).type(torch.LongTensor).cuda())
             n_corr += comp(out,target)
