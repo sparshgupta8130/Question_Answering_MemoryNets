@@ -30,7 +30,8 @@ def smax(x):
 
 
 def comp(out,target):
-    if (target.data[0] == np.argmax(smax(out.data))):
+    idx = np.argmax(smax(out.data.numpy()))
+    if (target.data[0] == idx):
         return 1
     else:
         return 0
