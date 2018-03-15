@@ -41,7 +41,7 @@ def comp(out,target):
 
 
 class QuesAnsModel(torch.nn.Module):
-    def __init__(self,embedding_dim, vocab_size, num_hops = 1, max_mem_size=15,temporal=False,same=0,positional=False):
+    def __init__(self,embedding_dim, vocab_size, num_hops = 1, max_mem_size=15,temporal=False,same=0,positional=False,dropout=0):
         super(QuesAnsModel,self).__init__()
         self.max_mem_size = max_mem_size
         self.vocab_size = vocab_size
@@ -52,6 +52,7 @@ class QuesAnsModel(torch.nn.Module):
         self.positional = positional
         self.same = same
         self.num_layers = 1
+        self.dropout = dropout
         if self.positional == True:
             self.memory = []
         else:
@@ -66,9 +67,9 @@ class QuesAnsModel(torch.nn.Module):
         self.temporal_C = torch.nn.Parameter(torch.randn(self.max_mem_size,self.embedding_dim).float()).cuda()
         torch.nn.init.xavier_normal(self.embedding_B.weight)
         torch.nn.init.xavier_normal(self.W.weight)
-        self.lstm_A = torch.nn.LSTM(self.embedding_dim,self.embedding_dim,self.num_layers).cuda()
-        self.lstm_B = torch.nn.LSTM(self.embedding_dim,self.embedding_dim,self.num_layers).cuda()
-        self.lstm_C = torch.nn.LSTM(self.embedding_dim,self.embedding_dim,self.num_layers).cuda()
+        self.lstm_A = torch.nn.LSTM(self.embedding_dim,self.embedding_dim,self.num_layers,dropout=self.dropout).cuda()
+        self.lstm_B = torch.nn.LSTM(self.embedding_dim,self.embedding_dim,self.num_layers,dropout=self.dropout).cuda()
+        self.lstm_C = torch.nn.LSTM(self.embedding_dim,self.embedding_dim,self.num_layers,dropout=self.dropout).cuda()
 #         self.hidden_A = self.init_hidden()
 #         self.hidden_B = self.init_hidden()
 #         self.hidden_C = self.init_hidden()
@@ -86,7 +87,8 @@ class QuesAnsModel(torch.nn.Module):
                Variable(torch.zeros(self.num_layers,batch_size,self.embedding_dim)).cuda())
 
     def forward(self, seq, seq_pe, tag, LS = 0):
-        if tag == 's':
+#         if tag == 's':
+        if tag in ['s','f']:
             if self.positional == False:
                 if self.current_mem_size < self.max_mem_size:
                     self.memory[self.current_mem_size] = Variable(torch.from_numpy(seq).float()).cuda().view(1,-1)
@@ -105,17 +107,17 @@ class QuesAnsModel(torch.nn.Module):
                     
             return True
         
-        elif tag == 'f':    
-            del self.memory
-            if self.positional == False:
-                self.memory = self.init_memory()
-                self.current_mem_size = 1
-                self.memory[0] = Variable(torch.from_numpy(seq).float()).cuda().view(1,-1)
-            else:
-                self.memory = []
-                self.current_mem_size = 1
-                self.memory.append(Variable(torch.from_numpy(seq_pe).float()).cuda().view(1,-1))
-            return True
+#         elif tag == 'f':    
+#             del self.memory
+#             if self.positional == False:
+#                 self.memory = self.init_memory()
+#                 self.current_mem_size = 1
+#                 self.memory[0] = Variable(torch.from_numpy(seq).float()).cuda().view(1,-1)
+#             else:
+#                 self.memory = []
+#                 self.current_mem_size = 1
+#                 self.memory.append(Variable(torch.from_numpy(seq_pe).float()).cuda().view(1,-1))
+#             return True
         
         else:
             if self.same == 0:
