@@ -256,7 +256,7 @@ class QuesAnsModel(torch.nn.Module):
 # In[5]:
 
 
-def train(model,tr_dt_bow,vd_dt_bow,tr_dt_pe, vd_dt_pe,opt=optim.Adam,epochs=10,eta=0.0001,LS=0,ls_thres=0.001,isLSTM=True):
+def train(model,tr_dt_bow,vd_dt_bow,tr_dt_pe, vd_dt_pe,opt=optim.Adam,epochs=10,eta=0.0001,LS=0,ls_thres=0.001,isLSTM=True, model_name ='a_model_has_no_name'):
     optimizer = opt(model.parameters(),lr=eta)
     loss = torch.nn.CrossEntropyLoss()
     print(optimizer)
@@ -278,8 +278,19 @@ def train(model,tr_dt_bow,vd_dt_bow,tr_dt_pe, vd_dt_pe,opt=optim.Adam,epochs=10,
         ls = 1
         ls_only = 1
     
+    file_path = "./observations/"
+    directory = os.path.dirname(file_path)
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    file_path = "./saved_models/"
+    directory = os.path.dirname(file_path)
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    ts = strftime("%Y-%m-%d__%Hh%Mm%Ss_" + model_name, gmtime())
+    
     for epoch in range(epochs):
         count=0
+        l = open('./observations/QAmem_trial_'+str(ts)+'.txt','a+')
         ################################# Training
         n_corr = 0
         l_temp = 0
@@ -345,21 +356,12 @@ def train(model,tr_dt_bow,vd_dt_bow,tr_dt_pe, vd_dt_pe,opt=optim.Adam,epochs=10,
         eps.append(epoch)
         print(epoch,'Training Loss : ',l_tr[-1],' , Training Acc : ',accuracy_tr[-1])
         print(epoch,'Validation Loss : ',l_vd[-1],' , Validation Acc : ',accuracy_vd[-1])
+        l.write(str(epoch)+' T '+str(l_tr[-1])+' V '+str(l_vd[-1])+' TA '+str(accuracy_tr[-1])+' VA '+str(accuracy_vd[-1])+'\n')
+        l.close()
+        if os.path.exists('saved_models/model' + str(ts) + '.pt'):
+            os.remove('saved_models/model' + str(ts) + '.pt')
+        torch.save(model,'saved_models/model' + str(ts) + '.pt')    
     print('end')
-    file_path = "./observations/"
-    directory = os.path.dirname(file_path)
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-        print('dfddf')
-    file_path = "./saved_models/"
-    directory = os.path.dirname(file_path)
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-    ts = strftime("%Y-%m-%d__%Hh%Mm%Ss_", gmtime())
-    if os.path.exists('saved_models/model' + str(ts) + '.pt'):
-        os.remove('saved_models/model' + str(ts) + '.pt')
-    
-    torch.save(model,'saved_models/model' + str(ts) + '.pt')    
     
     fig = plt.figure()
     plt.plot(eps,l_tr)
