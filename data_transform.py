@@ -43,6 +43,37 @@ def create_vocab(data,unk_thres=0):
     #print(unk_list)
     return vocab, unk_list
 
+def get_vocab_dict(fname):
+    unk_list = []
+    data = []
+    vocab = []
+    for l in open(fname,'r'):
+        temp = l.strip().split()
+        temp_ = []
+        for i in range(len(temp)):
+            if hasDigits(temp[i]):
+                temp_.append(float(temp[i]))
+            else:
+                temp_.append(temp[i])
+        data.append(temp_)
+    del data[0]
+    
+    for i in range(len(data)):
+        vocab.append(data[i][0])
+    
+    word2idx = defaultdict(int)
+    idx2word = defaultdict(int)
+    for i in range(len(vocab)):
+        word2idx[vocab[i]] = i
+        idx2word[i] = vocab[i]
+    
+    with open('variables/word2idx','wb') as handle:
+        pickle.dump(word2idx,handle,protocol=pickle.HIGHEST_PROTOCOL)
+    
+    with open('variables/idx2word','wb') as handle:
+        pickle.dump(idx2word,handle,protocol=pickle.HIGHEST_PROTOCOL)
+    
+    return vocab, unk_list
 
 # In[13]:
 
@@ -134,11 +165,11 @@ def transform_data_pe(data,vocab,unk_list,word2idx):
 # In[15]:
 
 
-def get_data(train_fname, valid_fname, test_fname, unk_thres=0):
+def get_data(train_fname, valid_fname, test_fname, vec_fname='bAbI_Data/model.vec', unk_thres=0, pre_embed = False):
     train_dat_aux = []
     valid_dat_aux = []
     test_dat_aux = []
-    punctuations = ['.',',','?']
+    punctuations = ['.','?']
     for l in open(train_fname+'.txt'):
         temp = ''.join(ch for ch in l if ch not in punctuations)
         train_dat_aux.append(temp.strip().split())
@@ -155,10 +186,13 @@ def get_data(train_fname, valid_fname, test_fname, unk_thres=0):
     print('Valid Data Size : ',len(valid_dat_aux))
     print('Test Data Size : ',len(test_dat_aux))
     
-    vocab, unk_list = create_vocab(train_dat_aux,unk_thres)
-    if not os.path.exists('variables'):
-        os.makedirs('variables')
-    create_dictionaries(vocab)
+    if pre_embed == False:
+        vocab, unk_list = create_vocab(train_dat_aux,unk_thres)
+        if not os.path.exists('variables'):
+            os.makedirs('variables')
+        create_dictionaries(vocab)
+    else:
+        vocab, unk_list = get_vocab_dict(vec_fname)
     #create_dictionaries(vocab)
     
     with open('variables/word2idx','rb') as handle:
@@ -166,6 +200,7 @@ def get_data(train_fname, valid_fname, test_fname, unk_thres=0):
 
     with open('variables/idx2word','rb') as handle:
         idx2word = pickle.load(handle)
+    
     train_data_BOW = transform_data_BOW(train_dat_aux,vocab,unk_list,word2idx)
     valid_data_BOW = transform_data_BOW(valid_dat_aux,vocab,unk_list,word2idx)
     test_data_BOW = transform_data_BOW(test_dat_aux,vocab,unk_list,word2idx)
@@ -175,3 +210,23 @@ def get_data(train_fname, valid_fname, test_fname, unk_thres=0):
     #print(train_dat_aux[:5])
     return train_data_BOW, valid_data_BOW, test_data_BOW,train_data_pe, valid_data_pe, test_data_pe, vocab
 
+def get_embeddings(fname):
+    data = []
+    for l in open(fname,'r'):
+        temp = l.strip().split()
+        temp_ = []
+        for i in range(len(temp)):
+            if hasDigits(temp[i]):
+                temp_.append(float(temp[i]))
+            else:
+                temp_.append(temp[i])
+        data.append(temp_)
+    del data[0]
+
+    data_veconly = []
+    for i in range(len(data)):
+        temp = data[i][1:]
+        data_veconly.append(temp)
+    data_veconly = np.array(data_veconly)
+    
+    return data_veconly

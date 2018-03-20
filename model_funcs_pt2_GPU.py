@@ -59,14 +59,21 @@ class QuesAnsModel(torch.nn.Module):
             self.memory = self.init_memory()
         self.embedding_A = torch.nn.Linear(self.vocab_size,self.embedding_dim,bias=False).cuda()
         self.embedding_C = torch.nn.Linear(self.vocab_size,self.embedding_dim,bias=False).cuda()
+        self.embedding_B = torch.nn.Linear(self.vocab_size,self.embedding_dim,bias=False).cuda()
         torch.nn.init.xavier_normal(self.embedding_A.weight)
         torch.nn.init.xavier_normal(self.embedding_C.weight)
-        self.embedding_B = torch.nn.Linear(self.vocab_size,self.embedding_dim,bias=False).cuda()
+        torch.nn.init.xavier_normal(self.embedding_B.weight)
+        
+        if pre_embed == True:
+            self.embedding_A.weight = torch.nn.Parameter(torch.from_numpy(embed_wts).float().t().cuda(),requires_grad=False)
+            self.embedding_C.weight = torch.nn.Parameter(torch.from_numpy(embed_wts).float().t().cuda(),requires_grad=False)
+            self.embedding_B.weight = torch.nn.Parameter(torch.from_numpy(embed_wts).float().t().cuda(),requires_grad=False)
+            self.same = 1
+        
         self.W = torch.nn.Linear(self.embedding_dim,self.vocab_size,bias=False).cuda()
+        torch.nn.init.xavier_normal(self.W.weight)
         self.temporal_A = torch.nn.Parameter(torch.randn(self.max_mem_size,self.embedding_dim).float()).cuda()
         self.temporal_C = torch.nn.Parameter(torch.randn(self.max_mem_size,self.embedding_dim).float()).cuda()
-        torch.nn.init.xavier_normal(self.embedding_B.weight)
-        torch.nn.init.xavier_normal(self.W.weight)
         self.lstm_A = torch.nn.LSTM(self.embedding_dim,self.embedding_dim,self.num_layers,dropout=self.dropout).cuda()
         self.lstm_B = torch.nn.LSTM(self.embedding_dim,self.embedding_dim,self.num_layers,dropout=self.dropout).cuda()
         self.lstm_C = torch.nn.LSTM(self.embedding_dim,self.embedding_dim,self.num_layers,dropout=self.dropout).cuda()
@@ -258,7 +265,7 @@ class QuesAnsModel(torch.nn.Module):
 
 
 def train(model,tr_dt_bow,vd_dt_bow,tr_dt_pe, vd_dt_pe,opt=optim.Adam,epochs=10,eta=0.0001,LS=0,ls_thres=0.001,isLSTM=True, model_name ='a_model_has_no_name'):
-    optimizer = opt(model.parameters(),lr=eta)
+    optimizer = opt(filter(lambda p: p.requires_grad, model.parameters()),lr=eta)
     loss = torch.nn.CrossEntropyLoss()
     print(optimizer)
     tr_shape = tr_dt_bow.shape
