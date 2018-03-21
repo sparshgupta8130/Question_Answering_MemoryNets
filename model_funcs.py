@@ -389,9 +389,49 @@ def train(model,tr_dt_bow,vd_dt_bow,tr_dt_pe, vd_dt_pe,opt=optim.Adam,epochs=10,
     
     return l_tr, accuracy_tr, l_vd, accuracy_vd
 
+def test_visualize(model,test_dt_bow,test_dt_pe, get_probs, num_words):
+    test_shape = test_dt_bow.shape
+    n_corr = 0;
+    count = 0;
+    with open('variables/word2idx','rb') as handle:
+        word2idx = pickle.load(handle)
+
+    with open('variables/idx2word','rb') as handle:
+        idx2word = pickle.load(handle)
+    print(idx2word)
+    for i in range(test_shape[0]):
+        l_temp = 0
+        tag = 'q'
+        if(test_dt_bow[i,-1]==-1):
+            tag = 's'
+            model(test_dt_bow[i,:-1],test_dt_pe[i][0,:-1],tag)
+            print(" ".join([idx2word[statement] for statement in test_dt_pe[i][0,:-1]]))
+        elif(test_dt_bow[i,-1]==-2):
+            tag = 'f'
+            model(test_dt_bow[i,:-1],test_dt_pe[i][0,:-1],tag)
+            print(" ".join([idx2word[statement] for statement in test_dt_pe[i][0,:-1]]))
+        else:
+            count+=1
+            out = model(test_dt_bow[i,:-1],test_dt_pe[i][0,:-1],tag)
+            target = Variable(torch.from_numpy(np.array([test_dt_bow[i,-1]])).type(torch.LongTensor))
+#                 target = Variable(torch.from_numpy(np.array([vd_dt_bow[i,-1]])).type(torch.LongTensor).cuda())
+            n_corr += comp(out,target)
+            print('QQ: '," ".join([idx2word[statement] for statement in test_dt_pe[i][0,:-1]]))
+            print('target: ', idx2word[target.data[0]])
+            print('out: ', idx2word[np.argmax(out.data.numpy())])
+            if get_probs:
+                probs_list = [(out.data.numpy()[0,j],idx2word[j]) for j in range(out.data.numpy().shape[1])]
+                print(sorted(probs_list,reverse=True)[:num_words])
+            probs = [pr[0] for pr in sorted(probs_list,reverse=True)[:num_words]]
+            plt.bar(np.arange(len(probs)), np.divide(np.exp(probs),np.sum(np.exp(probs)))) #
+            plt.xticks(np.arange(len(probs)), [pr[1] for pr in sorted(probs_list,reverse=True)[:num_words]])
+            plt.ylabel('Probability Distribution')
+            plt.show()
+    accuracy = n_corr/count*100
+    print(accuracy)
+    return accuracy
 
 # In[6]:
-
 
 def test(model,test_dt_bow,test_dt_pe):
     test_shape = test_dt_bow.shape
