@@ -264,7 +264,7 @@ class QuesAnsModel(torch.nn.Module):
 # In[5]:
 
 
-def train(model,tr_dt_bow,vd_dt_bow,tr_dt_pe, vd_dt_pe,opt=optim.Adam,epochs=10,eta=0.0001,LS=0,ls_thres=0.001,isLSTM=True, model_name ='a_model_has_no_name'):
+def train(model,tr_dt_bow,vd_dt_bow,tr_dt_pe, vd_dt_pe,opt=optim.Adam,epochs=10,eta=0.0001,LS=0,ls_thres=0.001,isLSTM=True, model_name ='a_model_has_no_name',visualize=True):
     optimizer = opt(filter(lambda p: p.requires_grad, model.parameters()),lr=eta)
     loss = torch.nn.CrossEntropyLoss()
     print(optimizer)
@@ -296,12 +296,17 @@ def train(model,tr_dt_bow,vd_dt_bow,tr_dt_pe, vd_dt_pe,opt=optim.Adam,epochs=10,
         os.makedirs(directory)
     ts = strftime("%Y-%m-%d__%Hh%Mm%Ss_" + model_name, gmtime())
     
+    vis_epochs = [0,5,10,15,20,25,30,35,40,45,50]
     for epoch in range(epochs):
         count=0
         l = open('./observations/QAmem_trial_'+str(ts)+'.txt','a+')
         ################################# Training
         n_corr = 0
         l_temp = 0
+        if epoch in vis_epochs and visualize == True:
+            print('=======================',epoch,'=====================')
+            test_visualize(model,tr_dt_bow,tr_dt_pe,get_probs=True,num_words=5)
+            
         for i in range(tr_shape[0]):
             tag = 'q'
             if(tr_dt_bow[i,-1]==-1):
@@ -391,7 +396,51 @@ def train(model,tr_dt_bow,vd_dt_bow,tr_dt_pe, vd_dt_pe,opt=optim.Adam,epochs=10,
     
     return l_tr, accuracy_tr, l_vd, accuracy_vd
 
+def test_visualize(model,test_dt_bow,test_dt_pe, num_words, get_probs=True):
+    test_shape = test_dt_bow.shape
+    n_corr = 0;
+    count = 0;
+    lim = 25
+    with open('variables/word2idx','rb') as handle:
+        word2idx = pickle.load(handle)
 
+    with open('variables/idx2word','rb') as handle:
+        idx2word = pickle.load(handle)
+    print(idx2word)
+    for i in range(test_shape[0]):
+        l_temp = 0
+        tag = 'q'
+        if(test_dt_bow[i,-1]==-1):
+            tag = 's'
+            model(test_dt_bow[i,:-1],test_dt_pe[i][0,:-1],tag)
+            if i < lim:
+                print(" ".join([idx2word[statement] for statement in test_dt_pe[i][0,:-1]]))
+        elif(test_dt_bow[i,-1]==-2):
+            tag = 'f'
+            model(test_dt_bow[i,:-1],test_dt_pe[i][0,:-1],tag)
+            if i < lim:
+                print(" ".join([idx2word[statement] for statement in test_dt_pe[i][0,:-1]]))
+        else:
+            count+=1
+            out = model(test_dt_bow[i,:-1],test_dt_pe[i][0,:-1],tag)
+            target = Variable(torch.from_numpy(np.array([test_dt_bow[i,-1]])).type(torch.LongTensor))
+#                 target = Variable(torch.from_numpy(np.array([vd_dt_bow[i,-1]])).type(torch.LongTensor).cuda())
+            n_corr += comp(out,target)
+            if i < lim:
+                print('QQ: '," ".join([idx2word[statement] for statement in test_dt_pe[i][0,:-1]]))
+                print('target: ', idx2word[target.data[0]])
+                print('out: ', idx2word[np.argmax(out.data.numpy())])
+                if get_probs:
+                    probs_list = [(out.data.numpy()[0,j],idx2word[j]) for j in range(out.data.numpy().shape[1])]
+                    print(sorted(probs_list,reverse=True)[:num_words])
+                probs = [pr[0] for pr in sorted(probs_list,reverse=True)[:num_words]]
+                plt.bar(np.arange(len(probs)), np.divide(np.exp(probs),np.sum(np.exp(probs)))) #
+                plt.xticks(np.arange(len(probs)), [pr[1] for pr in sorted(probs_list,reverse=True)[:num_words]])
+                plt.ylabel('Probability Distribution')
+                plt.show()
+    accuracy = n_corr/count*100
+    print(accuracy)
+    return accuracy
 # In[6]:
 
 
