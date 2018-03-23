@@ -186,10 +186,11 @@ def get_data(train_fname, valid_fname, test_fname, vec_fname='bAbI_Data/model.ve
     print('Valid Data Size : ',len(valid_dat_aux))
     print('Test Data Size : ',len(test_dat_aux))
     
+    if not os.path.exists('variables'):
+        os.makedirs('variables')
+    
     if pre_embed == False:
         vocab, unk_list = create_vocab(train_dat_aux,unk_thres)
-        if not os.path.exists('variables'):
-            os.makedirs('variables')
         create_dictionaries(vocab)
     else:
         vocab, unk_list = get_vocab_dict(vec_fname)
