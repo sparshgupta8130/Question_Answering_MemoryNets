@@ -24,7 +24,30 @@ Instead of training embedding matrices in an end-to-end fashion, they were pre-t
 Additional basic libraries were used as well, like `sys`, `os`, `defaultdict`.
 
 ## Implementation
-### Data Input and Pre-Processing
+### Driver Code for Console
+The `QA_MemNets.py` is the driver function for this project which allows playing with network architecture specifications, training specifications and lets the user choose dataset on which he/she wishes to run the model. This code is executable from the console, and takes in following optional arguments.
+
+* `--folder` : The folder from which training, validation and test sets have to be used. Allowed values : 'en-valid' and 'en-valid-10k'. Default value = 'en-valid-10k'
+* `--qa` : The QA task on which the model will be run.
+* `--pre_embed` : Flag indicating whether to use pre-trained embedding matrices or not. Use this arg if you want to use pre-trained embeddings.
+* `--m_id` : The model name with which you want the figures and model to be stored. Default value = 'a\_model\_has\_no\_name'
+* `--emd` : The dimension of embedding space has to be passed here. This will be overwritten if *pre\_embed* = True. Default value = 10
+* `--hops` : The number of hops for the model forward pass. Default value = 1
+* `--memsize` : The maximum number of most recent sentences to be stored in memory. Default value = 15
+* `--epochs` : Number of epochs for which to run the model. Default value = 10
+* `--eta` : Learning Rate to be used. Default value = 0.0001
+* `--ls` : Flag indicating whether to use Lienar Start or not. Default value = 0. Value 1 implies using Linear Start. Value -1 implies using only Linear layer and no softmax ever.
+* `--ls_thres` : Saturation threshold for linear start. Required if *LS* = 1. Default value = 0.001
+* `--temp` : Flag indicating whether to use Temporal Encoding or not. Use this arg if you want to use temporal.
+* `--posit` : Flag indicating whether to use LSTM for sentence representation or not. Use this arg if you want to use LSTM.
+* `--dropout` : Dropout to be added for LSTM. Used only when *positional* = True. Default value = 0
+* `--same` : Flag indicating whether to use Shared Embedding Matrix or not. Default value = 0
+* `--GPU` : Flag indicating whether to use GPU for training or not. Use this arg if you want to use GPU.
+* `--pt2` : Flag indicating whether system uses Pytorch2 or not. Use this arg if you want to use Pytorch2. By default the code assumes Pytorch3.
+* `--notest` : Flag indicating whether to evaluate model on test data or not. Can be used while hyperparameter tuning. If used, model won't be evaluated on test data.
+
+### Details for Internally Used Codes
+#### Data Input and Pre-Processing
 The `get_data` function in **data_transform.py** is used to get the vocabulary and transformation of training, testing and validation data in Bag of Words and Positional Encoding Representation.
 
 ```
@@ -43,7 +66,7 @@ get_data(train_fname, valid_fname, test_fname, vec_fname='bAbI_Data/model.vec', 
 
 Additionally, if *pre_embed* = True, the function `get_embeddings` has to be invoked which returns the embedding matrix as a numpy array.
 
-### Model Definition
+#### Model Definition
 The `QuesAnsModel` class in **model_funcs.py** has details of the model. While creating a new model, following arguments can be passed in the constructor of the class:
 
 ```
@@ -70,7 +93,7 @@ __init__(self,embedding_dim, vocab_size, num_hops = 1, max_mem_size=15,temporal=
 
 * **embed\_wts** : The embedding weight matrix to be used. Required if *pre\_embed* = True. Default value = None
 
-### Train Function
+#### Train Function
 The function `train` in **model_funcs.py** is used to train the model:
 
 ```
@@ -101,7 +124,7 @@ train(model,tr_dt_bow,vd_dt_bow,tr_dt_pe, vd_dt_pe,opt=optim.Adam,epochs=10,eta=
 
 * **visualize** : [optional] Flag indicating whether to visualize model progress with increasing epochs or not. Default value = True
 
-### Test Function
+#### Test Function
 The function `test` in **model_funcs.py** is used to test the model on test data.
 
 ```
@@ -114,7 +137,7 @@ test(model,test_dt_bow,test_dt_pe)
 
 * **test\_dt\_pe** : [mandatory] Test data in Positional Encoding Representation.
 
-### Visualization Function
+#### Visualization Function
 The function `test_visualize` in **model_funcs.py** is used to visualize probability graphs during training and testing.
 
 ```
@@ -131,10 +154,10 @@ test_visualize(model,test_dt_bow,test_dt_pe, get_probs=True, num_words)
 
 * **num\_words** : Number of words with highest probabilities to be displayed. Required if *get\_probs* = True
 
-### Driver Code
+#### Driver Code
 The `Skeleton_Code.ipynb` jupyter file is the driver code for this task. Once the flags mentioned above for different functions are set, this code takes care of everything for executing the program successfully.
 
-### Additional .py Files
+#### Additional .py Files
 Three additional files are provided:
 
 * **model_funcs_GPU.py** : This has GPU dependencies for the code.
