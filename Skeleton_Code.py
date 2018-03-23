@@ -48,6 +48,7 @@ def get_data(folder_name,qa_name,unk_thres=0,pre_embed=False):
 def train(folder_name='en-valid-10k',qa_name='qa1',unk_thres=0,pre_embed=False,model_identity='a_model_has_no_name',
                embedding_dim=10,num_hops = 1,max_mem_size=15,epochs=10,eta=0.0001,LS=0,ls_thres=0.001,temporal=False,
          positional=False,same=0,dropout=0,visualize=True,GPU=False,pyTorch2=False,test=True):
+    vec_fname = 'bAbI_Data/model.vec'
     if pre_embed == True:
         embed_wts = data_transform.get_embeddings(vec_fname)
     else:
