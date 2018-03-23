@@ -439,7 +439,7 @@ def test_visualize(model,test_dt_bow,test_dt_pe, num_words, get_probs=True):
 #                 plt.ylabel('Probability Distribution')
 #                 plt.show()
     accuracy = n_corr/count*100
-    print(accuracy)
+#     print(accuracy)
     return accuracy
 
 # In[6]:

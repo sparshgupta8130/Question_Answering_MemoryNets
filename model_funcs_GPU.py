@@ -434,14 +434,16 @@ def test_visualize(model,test_dt_bow,test_dt_pe, num_words, get_probs=True):
                 print('out: ', idx2word[np.argmax(out.cpu().data.numpy())])
                 if get_probs:
                     probs_list = [(out.cpu().data.numpy()[0,j],idx2word[j]) for j in range(out.cpu().data.numpy().shape[1])]
-                    print(sorted(probs_list,reverse=True)[:num_words])
-                probs = [pr[0] for pr in sorted(probs_list,reverse=True)[:num_words]]
-                plt.bar(np.arange(len(probs)), np.divide(np.exp(probs),np.sum(np.exp(probs)))) #
-                plt.xticks(np.arange(len(probs)), [pr[1] for pr in sorted(probs_list,reverse=True)[:num_words]])
-                plt.ylabel('Probability Distribution')
-                plt.show()
+                    probs_list = sorted(probs_list,reverse=True)
+                    for s in range(num_words):
+                        print(probs_list[s][1],' : ',probs_list[s][0])
+#                 probs = [pr[0] for pr in sorted(probs_list,reverse=True)[:num_words]]
+#                 plt.bar(np.arange(len(probs)), np.divide(np.exp(probs),np.sum(np.exp(probs)))) #
+#                 plt.xticks(np.arange(len(probs)), [pr[1] for pr in sorted(probs_list,reverse=True)[:num_words]])
+#                 plt.ylabel('Probability Distribution')
+#                 plt.show()
     accuracy = n_corr/count*100
-    print(accuracy)
+#     print(accuracy)
     return accuracy
 
 def test(model,test_dt_bow,test_dt_pe):
