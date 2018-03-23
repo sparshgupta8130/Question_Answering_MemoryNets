@@ -15,7 +15,7 @@ import torch.optim as optim
 import os
 import sys
 from time import gmtime, strftime
-get_ipython().run_line_magic('matplotlib', 'inline')
+#get_ipython().run_line_magic('matplotlib', 'inline')
 
 
 # In[1]:
@@ -477,7 +477,7 @@ def test(model,test_dt_bow,test_dt_pe):
             target = Variable(torch.from_numpy(np.array([vd_dt_bow[i,-1]])).type(torch.LongTensor).cuda())
             n_corr += comp(out,target)
     accuracy = n_corr/count*100
-    print(accuracy)
+#     print(accuracy)
     return accuracy
 
 
