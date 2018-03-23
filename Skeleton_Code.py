@@ -107,17 +107,17 @@ def train(folder_name='en-valid-10k',qa_name='qa1',unk_thres=0,pre_embed=False,m
                                                                          model_name=model_identity,visualize=visualize)
     
     if test == True:
-        test(model,test_data_BOW,test_data_pe,GPU=GPU,pyTorch2=pyTorch2)
+        test_model(model,test_data_BOW,test_data_pe,GPU=GPU,pyTorch2=pyTorch2)
     
     return model
 
 
-def test(model,test_data_BOW,test_data_pe,GPU=False,pyTorch2=False):
+def test_model(model,test_data_BOW,test_data_pe,GPU=False,pyTorch2=False):
     if pyTorch2 == False:
         if GPU == True:
             acc = model_funcs_GPU.test(model,test_data_BOW,test_data_pe)
         else:
-            acc = model_funcs.test(model,test_data_BOW,test_data_pe,get_probs=True, num_words=5)
+            acc = model_funcs.test(model,test_data_BOW,test_data_pe)
     else:
         if GPU == True:
             acc = model_funcs_pt2_GPU.test(model,test_data_BOW,test_data_pe)
