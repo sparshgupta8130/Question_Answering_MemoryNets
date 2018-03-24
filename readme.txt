@@ -7,6 +7,8 @@ The code implements End-to-End Learning on bAbI Question Answering tasks using M
 * Linear Start
 * Training Embedding Matrices using Skipgram
 
+The final modified architecture which we used can be seen here: https://go.gliffy.com/go/share/image/slwgpn5126xykk3vnjav.png
+
 For generating the sentence representation in embedding space, using word vector embeddings, **LSTM** was used, in place of simple matrix multiplication in MemN2N. LSTM captures the structure of sentence, which is useful for many tasks that have a huge dependency on sentence structure and word positions.
 
 To ensure that dot products between question and context take place in same embedding space, **Shared Embedding Matrices** were used, i.e. same embedding matrix was used for projecting the context and question to embedding space.
