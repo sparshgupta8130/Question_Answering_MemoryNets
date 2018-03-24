@@ -364,10 +364,10 @@ def train(model,tr_dt_bow,vd_dt_bow,tr_dt_pe, vd_dt_pe,opt=optim.Adam,epochs=10,
                     print('Inserting Softmax...')
                     ls = 0
         
-        eps.append(epoch)
-        print(epoch,'Training Loss : ',l_tr[-1],' , Training Acc : ',accuracy_tr[-1])
-        print(epoch,'Validation Loss : ',l_vd[-1],' , Validation Acc : ',accuracy_vd[-1])
-        l.write(str(epoch)+' T '+str(l_tr[-1])+' V '+str(l_vd[-1])+' TA '+str(accuracy_tr[-1])+' VA '+str(accuracy_vd[-1])+'\n')
+        eps.append(epoch+1)
+        print(epoch+1,'Training Loss : ',l_tr[-1],' , Training Acc : ',accuracy_tr[-1])
+        print(epoch+1,'Validation Loss : ',l_vd[-1],' , Validation Acc : ',accuracy_vd[-1])
+        l.write(str(epoch+1)+' T '+str(l_tr[-1])+' V '+str(l_vd[-1])+' TA '+str(accuracy_tr[-1])+' VA '+str(accuracy_vd[-1])+'\n')
         l.close()
         if os.path.exists('saved_models/model' + str(ts) + '.pt'):
             os.remove('saved_models/model' + str(ts) + '.pt')
