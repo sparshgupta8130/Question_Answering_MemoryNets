@@ -174,3 +174,5 @@ The driver code handles this as well, once the flags `GPU` and `pyTorch2` flags 
 [1] Sainbayar Sukhbaatar, Arthur Szlam, Jason Weston, Rob Fergus, "End-to-End Memory Networks", arXiv:1503.08895v5 [cs.NE]
 
 [2] https://github.com/facebookresearch/fastText/
+
+[3] https://research.fb.com/downloads/babi/
