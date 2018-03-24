@@ -46,6 +46,8 @@ The `QA_MemNets.py` is the driver function for this project which allows playing
 * `--pt2` : Flag indicating whether system uses Pytorch2 or not. Use this arg if you want to use Pytorch2. By default the code assumes Pytorch3.
 * `--notest` : Flag indicating whether to evaluate model on test data or not. Can be used while hyperparameter tuning. If used, model won't be evaluated on test data.
 
+**NOTE** : Currently, the visualization of model's training procedure is not supported, and will be updated shoertly. This version supports only 'en-valid' and 'en-valid-10k' parts of bAbI dataset[3] for now, but support for other parts will be added shortly.
+
 ### Details for Internally Used Codes
 #### Data Input and Pre-Processing
 The `get_data` function in **data_transform.py** is used to get the vocabulary and transformation of training, testing and validation data in Bag of Words and Positional Encoding Representation.
